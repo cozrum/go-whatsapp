@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+func (wac *Conn) getMsgCountAndTag() (int64, string) {
+	wac.msgCount += 1
+
+	tag := fmt.Sprintf("%d.%d", wac.id, wac.msgCount)
+	return wac.msgCount, tag
+}
+
 //writeJson enqueues a json message into the writeChan
 func (wac *Conn) writeJson(data []interface{}) (<-chan string, error) {
 	d, err := json.Marshal(data)
@@ -20,8 +27,8 @@ func (wac *Conn) writeJson(data []interface{}) (<-chan string, error) {
 		return nil, err
 	}
 
-	ts := time.Now().Unix()
-	messageTag := fmt.Sprintf("%d.--%d", ts, wac.msgCount)
+	_, messageTag := wac.getMsgCountAndTag()
+
 	bytes := []byte(fmt.Sprintf("%s,%s", messageTag, d))
 
 	ch, err := wac.write(websocket.TextMessage, messageTag, bytes)
@@ -29,7 +36,6 @@ func (wac *Conn) writeJson(data []interface{}) (<-chan string, error) {
 		return nil, err
 	}
 
-	wac.msgCount++
 	return ch, nil
 }
 
@@ -52,7 +58,6 @@ func (wac *Conn) writeBinary(node binary.Node, metric metric, flag flag, message
 		return nil, errors.Wrap(err, "failed to write message")
 	}
 
-	wac.msgCount++
 	return ch, nil
 }
 

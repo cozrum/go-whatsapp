@@ -96,11 +96,13 @@ func (wac *Conn) Send(msg interface{}) (string, error) {
 }
 
 func (wac *Conn) sendProto(p *proto.WebMessageInfo) (<-chan string, error) {
+	msgCount, _ := wac.getMsgCountAndTag()
+
 	n := binary.Node{
 		Description: "action",
 		Attributes: map[string]string{
 			"type":  "relay",
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(msgCount, 10),
 		},
 		Content: []interface{}{p},
 	}

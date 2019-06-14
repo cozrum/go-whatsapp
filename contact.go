@@ -1,10 +1,8 @@
 package whatsapp
 
 import (
-	"fmt"
 	"github.com/Rhymen/go-whatsapp/binary"
 	"strconv"
-	"time"
 )
 
 type Presence string
@@ -52,8 +50,7 @@ func (wac *Conn) LoadMessagesAfter(jid, messageId string, count int) (*binary.No
 }
 
 func (wac *Conn) Presence(jid string, presence Presence) (<-chan string, error) {
-	ts := time.Now().Unix()
-	tag := fmt.Sprintf("%d.--%d", ts, wac.msgCount)
+	msgCount, tag := wac.getMsgCountAndTag()
 
 	content := binary.Node{
 		Description: "presence",
@@ -74,7 +71,7 @@ func (wac *Conn) Presence(jid string, presence Presence) (<-chan string, error) 
 		Description: "action",
 		Attributes: map[string]string{
 			"type":  "set",
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(msgCount, 10),
 		},
 		Content: []interface{}{content},
 	}
@@ -100,14 +97,13 @@ func (wac *Conn) Chats() (*binary.Node, error) {
 }
 
 func (wac *Conn) Read(jid, id string) (<-chan string, error) {
-	ts := time.Now().Unix()
-	tag := fmt.Sprintf("%d.--%d", ts, wac.msgCount)
+	msgCount, tag := wac.getMsgCountAndTag()
 
 	n := binary.Node{
 		Description: "action",
 		Attributes: map[string]string{
 			"type":  "set",
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(msgCount, 10),
 		},
 		Content: []interface{}{binary.Node{
 			Description: "read",
@@ -124,14 +120,13 @@ func (wac *Conn) Read(jid, id string) (<-chan string, error) {
 }
 
 func (wac *Conn) query(t, jid, messageId, kind, owner, search string, count, page int) (*binary.Node, error) {
-	ts := time.Now().Unix()
-	tag := fmt.Sprintf("%d.--%d", ts, wac.msgCount)
+	msgCount, tag := wac.getMsgCountAndTag()
 
 	n := binary.Node{
 		Description: "query",
 		Attributes: map[string]string{
 			"type":  t,
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(msgCount, 10),
 		},
 	}
 
@@ -178,8 +173,7 @@ func (wac *Conn) query(t, jid, messageId, kind, owner, search string, count, pag
 }
 
 func (wac *Conn) setGroup(t, jid, subject string, participants []string) (<-chan string, error) {
-	ts := time.Now().Unix()
-	tag := fmt.Sprintf("%d.--%d", ts, wac.msgCount)
+	msgCount, tag := wac.getMsgCountAndTag()
 
 	//TODO: get proto or improve encoder to handle []interface{}
 
@@ -207,7 +201,7 @@ func (wac *Conn) setGroup(t, jid, subject string, participants []string) (<-chan
 		Description: "action",
 		Attributes: map[string]string{
 			"type":  "set",
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(msgCount, 10),
 		},
 		Content: []interface{}{g},
 	}

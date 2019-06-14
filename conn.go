@@ -81,7 +81,7 @@ type Conn struct {
 	session        *Session
 	sessionLock    uint32
 	handler        []Handler
-	msgCount       int
+	msgCount       int64
 	msgTimeout     time.Duration
 	Info           *Info
 	Store          *Store
@@ -89,6 +89,7 @@ type Conn struct {
 
 	longClientName  string
 	shortClientName string
+	id              int
 }
 
 type websocketWrapper struct {
@@ -102,14 +103,19 @@ type listenerWrapper struct {
 	m map[string]chan string
 }
 
+var connCount = 0
+
 /*
 Creates a new connection with a given timeout. The websocket connection to the WhatsAppWeb servers get´s established.
 The goroutine for handling incoming messages is started
 */
 func NewConn(timeout time.Duration) (*Conn, error) {
+	connCount += 1
+
 	wac := &Conn{
+		id:         connCount,
 		handler:    make([]Handler, 0),
-		msgCount:   0,
+		msgCount:   int64(connCount) * 10000000000,
 		msgTimeout: timeout,
 		Store:      newStore(),
 
@@ -117,6 +123,10 @@ func NewConn(timeout time.Duration) (*Conn, error) {
 		shortClientName: "go-whatsapp",
 	}
 	return wac, wac.connect()
+}
+
+func (wac *Conn) GetId() int {
+	return wac.id
 }
 
 // connect should be guarded with wsWriteMutex
