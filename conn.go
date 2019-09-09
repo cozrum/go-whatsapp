@@ -2,13 +2,14 @@
 package whatsapp
 
 import (
-	"math/rand"
-	"net/http"
-	"sync"
-	"time"
-
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+	"log"
+	"math/rand"
+	"net/http"
+	"os"
+	"sync"
+	"time"
 )
 
 type metric byte
@@ -214,6 +215,8 @@ func (wac *Conn) keepAlive(minIntervalMs int, maxIntervalMs int) {
 		select {
 		case <-time.After(time.Duration(interval) * time.Millisecond):
 		case <-wac.ws.close:
+			log.Println("Websocket close", wac.ws.close)
+			os.Exit(88)
 			return
 		}
 	}
