@@ -7,7 +7,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 )
@@ -202,9 +201,19 @@ func (wac *Conn) Disconnect() (Session, error) {
 	return *wac.session, err
 }
 
+func (wac *Conn) Reconnect() error {
+	_, err := wac.Disconnect()
+
+	if err != nil {
+		return err
+	}
+
+	wac.connect()
+	return nil
+}
+
 func (wac *Conn) keepAlive(minIntervalMs int, maxIntervalMs int) {
 	defer wac.wg.Done()
-
 	for {
 		err := wac.sendKeepAlive()
 		if err != nil {
@@ -216,7 +225,6 @@ func (wac *Conn) keepAlive(minIntervalMs int, maxIntervalMs int) {
 		case <-time.After(time.Duration(interval) * time.Millisecond):
 		case <-wac.ws.close:
 			log.Println("Websocket close", wac.ws.close)
-			os.Exit(88)
 			return
 		}
 	}
