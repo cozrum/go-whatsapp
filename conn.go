@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -225,6 +226,7 @@ func (wac *Conn) keepAlive(minIntervalMs int, maxIntervalMs int) {
 		case <-time.After(time.Duration(interval) * time.Millisecond):
 		case <-wac.ws.close:
 			log.Println("Websocket close", wac.ws.close)
+			os.Exit(199)
 			return
 		}
 	}
