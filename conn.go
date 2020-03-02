@@ -2,12 +2,13 @@
 package whatsapp
 
 import (
-	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
+
+	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
+
 	"sync"
 	"time"
 )
@@ -219,15 +220,18 @@ func (wac *Conn) keepAlive(minIntervalMs int, maxIntervalMs int) {
 		err := wac.sendKeepAlive()
 		if err != nil {
 			wac.handle(errors.Wrap(err, "keepAlive failed"))
+			return
 			//TODO: Consequences?
 		}
 		interval := rand.Intn(maxIntervalMs-minIntervalMs) + minIntervalMs
 		select {
 		case <-time.After(time.Duration(interval) * time.Millisecond):
 		case <-wac.ws.close:
-			log.Println("Websocket close", wac.ws.close)
-			os.Exit(199)
-			return
+			if wac.Info != nil && wac.Info.Phone != nil {
+				log.Println("keepAlive -> Websocket close", wac, wac.Info, wac.Info.Phone, wac.ws.close)
+			} else {
+				log.Println("keepAlive -> Websocket close", wac.ws.close)
+			}
 		}
 	}
 }
