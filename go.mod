@@ -1,10 +1,10 @@
-module github.com/ximxim8963/go-whatsapp
+module github.com/cozrum/go-whatsapp
 
 require (
-	github.com/ximxim8963/go-whatsapp/examples/echo v0.0.0-20190325075644-cc2581bbf24d // indirect
-	github.com/ximxim8963/go-whatsapp/examples/restoreSession v0.0.0-20190325075644-cc2581bbf24d // indirect
-	github.com/ximxim8963/go-whatsapp/examples/sendImage v0.0.0-20190325075644-cc2581bbf24d // indirect
-	github.com/ximxim8963/go-whatsapp/examples/sendTextMessages v0.0.0-20190325075644-cc2581bbf24d // indirect
+	github.com/cozrum/go-whatsapp/examples/echo v0.0.0-20190325075644-cc2581bbf24d // indirect
+	github.com/cozrum/go-whatsapp/examples/restoreSession v0.0.0-20190325075644-cc2581bbf24d // indirect
+	github.com/cozrum/go-whatsapp/examples/sendImage v0.0.0-20190325075644-cc2581bbf24d // indirect
+	github.com/cozrum/go-whatsapp/examples/sendTextMessages v0.0.0-20190325075644-cc2581bbf24d // indirect
 	github.com/golang/protobuf v1.3.0
 	github.com/gorilla/websocket v1.4.0
 	github.com/pkg/errors v0.8.1

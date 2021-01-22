@@ -1,7 +1,7 @@
 package whatsapp
 
 import (
-	"github.com/ximxim8963/go-whatsapp/binary"
+	"github.com/cozrum/go-whatsapp/binary"
 	"strconv"
 )
 

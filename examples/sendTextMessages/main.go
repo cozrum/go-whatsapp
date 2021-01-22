@@ -4,7 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/Baozisoftware/qrcode-terminal-go"
-	"github.com/ximxim8963/go-whatsapp"
+	"github.com/cozrum/go-whatsapp"
 	"os"
 	"time"
 )
@@ -29,7 +29,7 @@ func main() {
 		Info: whatsapp.MessageInfo{
 			RemoteJid: "number@s.whatsapp.net",
 		},
-		Text: "Message sent by github.com/ximxim8963/go-whatsapp",
+		Text: "Message sent by github.com/cozrum/go-whatsapp",
 	}
 
 	msgId,err := wac.Send(msg)
