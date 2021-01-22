@@ -1,8 +1,8 @@
-module github.com/ximxim8963/go-whatsapp/examples/restoreSession
+module github.com/cozrum/go-whatsapp/examples/restoreSession
 
 require (
 	github.com/Baozisoftware/qrcode-terminal-go v0.0.0-20170407111555-c0650d8dff0f
-	github.com/ximxim8963/go-whatsapp v0.0.0
+	github.com/cozrum/go-whatsapp v0.0.0
 )
 
-replace github.com/ximxim8963/go-whatsapp => ../../
+replace github.com/cozrum/go-whatsapp => ../../

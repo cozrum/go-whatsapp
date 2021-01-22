@@ -4,7 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/Baozisoftware/qrcode-terminal-go"
-	"github.com/ximxim8963/go-whatsapp"
+	"github.com/cozrum/go-whatsapp"
 	"os"
 	"strings"
 	"time"
