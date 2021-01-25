@@ -33,7 +33,7 @@ func (wac *Conn) writeJson(data []interface{}) (<-chan string, error) {
 	}
 
 	_, messageTag := wac.getMsgCountAndTag()
-
+	ts := time.Now().Unix()
 	bytes := []byte(fmt.Sprintf("%s,%s", messageTag, d))
 
 	if wac.timeTag == "" {
