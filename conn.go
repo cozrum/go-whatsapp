@@ -157,7 +157,7 @@ func NewConnWithOptions(opt *Options) (*Conn, error) {
 
 		msgTimeout: opt.Timeout,
 		Store:      newStore(),
-		longClientName:  "github.com/Rhymen/go-whatsapp",
+		longClientName:  "github.com/cozrum/go-whatsapp",
 		shortClientName: "go-whatsapp",
 		clientVersion:   "0.1.0",
 	}
