@@ -95,7 +95,7 @@ func (wac *Conn) Send(msg interface{}) (string, error) {
 
 func (wac *Conn) sendProto(p *proto.WebMessageInfo) (<-chan string, error) {
 	msgCount, _ := wac.getMsgCountAndTag()
-
+ 
 	n := binary.Node{
 		Description: "action",
 		Attributes: map[string]string{
@@ -180,7 +180,7 @@ func (wac *Conn) deleteChatProto(remotejid, msgid string, fromMe bool) (<-chan s
 	n := binary.Node{
 		Description: "action",
 		Attributes: map[string]string{
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(wac.msgCount, 10),
 			"type":  "set",
 		},
 		Content: []interface{}{
