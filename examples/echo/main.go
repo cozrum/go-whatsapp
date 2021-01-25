@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/gob"
 	"fmt"
-	"github.com/Baozisoftware/qrcode-terminal-go"
-	"github.com/cozrum/go-whatsapp"
 	"os"
 	"strings"
 	"time"
+
+	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
+	"github.com/cozrum/go-whatsapp"
 )
 
 type waHandler struct {
@@ -34,7 +35,7 @@ func (wh *waHandler) HandleTextMessage(message whatsapp.TextMessage) {
 		Text: message.Text,
 	}
 
-	if err := wh.wac.Send(msg); err != nil {
+	if _, err := wh.wac.Send(msg); err != nil {
 		fmt.Fprintf(os.Stderr, "error sending message: %v\n", err)
 	}
 

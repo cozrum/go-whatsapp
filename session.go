@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -16,7 +18,7 @@ import (
 )
 
 //represents the WhatsAppWeb client version
-var waVersion = []int{0, 3, 3330}
+var waVersion = []int{2, 2039, 9}
 
 /*
 Session contains session individual information. To be able to resume the connection without scanning the qr code
@@ -89,15 +91,75 @@ func newInfoFromReq(info map[string]interface{}) *Info {
 }
 
 /*
+CheckCurrentServerVersion is based on the login method logic in order to establish the websocket connection and get
+the current version from the server with the `admin init` command. This can be very useful for automations in which
+you need to quickly perceive new versions (mostly patches) and update your application so it suddenly stops working.
+*/
+func CheckCurrentServerVersion() ([]int, error) {
+	wac, err := NewConn(5 * time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create connection")
+	}
+
+	clientId := make([]byte, 16)
+	if _, err = rand.Read(clientId); err != nil {
+		return nil, fmt.Errorf("error creating random ClientId: %v", err)
+	}
+
+	b64ClientId := base64.StdEncoding.EncodeToString(clientId)
+	login := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName, wac.clientVersion}, b64ClientId, true}
+	loginChan, err := wac.writeJson(login)
+	if err != nil {
+		return nil, fmt.Errorf("error writing login: %s", err.Error())
+	}
+
+	// Retrieve an answer from the websocket
+	var r string
+	select {
+	case r = <-loginChan:
+	case <-time.After(wac.msgTimeout):
+		return nil, fmt.Errorf("login connection timed out")
+	}
+
+	var resp map[string]interface{}
+	if err = json.Unmarshal([]byte(r), &resp); err != nil {
+		return nil, fmt.Errorf("error decoding login: %s", err.Error())
+	}
+
+	// Take the curr property as X.Y.Z and split it into as int slice
+	curr := resp["curr"].(string)
+	currArray := strings.Split(curr, ".")
+	version := make([]int, len(currArray))
+	for i := range version {
+		version[i], _ = strconv.Atoi(currArray[i])
+	}
+
+	return version, nil
+}
+
+/*
 SetClientName sets the long and short client names that are sent to WhatsApp when logging in and displayed in the
 WhatsApp Web device list. As the values are only sent when logging in, changing them after logging in is not possible.
 */
-func (wac *Conn) SetClientName(long, short string) error {
+func (wac *Conn) SetClientName(long, short string, version string) error {
 	if wac.session != nil && (wac.session.EncKey != nil || wac.session.MacKey != nil) {
 		return fmt.Errorf("cannot change client name after logging in")
 	}
-	wac.longClientName, wac.shortClientName = long, short
+	wac.longClientName, wac.shortClientName, wac.clientVersion = long, short, version
 	return nil
+}
+
+/*
+SetClientVersion sets WhatsApp client version
+Default value is 0.4.2080
+*/
+func (wac *Conn) SetClientVersion(major int, minor int, patch int) {
+	waVersion = []int{major, minor, patch}
+}
+
+// GetClientVersion returns WhatsApp client version
+func (wac *Conn) GetClientVersion() []int {
+	return waVersion
 }
 
 /*
@@ -151,7 +213,7 @@ func (wac *Conn) Login(qrChan chan<- string) (Session, error) {
 	}
 
 	session.ClientId = base64.StdEncoding.EncodeToString(clientId)
-	login := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName}, session.ClientId, true}
+	login := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName, wac.clientVersion}, session.ClientId, true}
 	loginChan, err := wac.writeJson(login)
 	if err != nil {
 		return session, fmt.Errorf("error writing login: %v\n", err)
@@ -169,7 +231,12 @@ func (wac *Conn) Login(qrChan chan<- string) (Session, error) {
 		return session, fmt.Errorf("error decoding login resp: %v\n", err)
 	}
 
-	ref := resp["ref"].(string)
+	var ref string
+	if rref, ok := resp["ref"].(string); ok {
+		ref = rref
+	} else {
+		return session, fmt.Errorf("error decoding login resp: invalid resp['ref']\n")
+	}
 
 	priv, pub, err := curve25519.GenerateKey()
 	if err != nil {
@@ -187,6 +254,8 @@ func (wac *Conn) Login(qrChan chan<- string) (Session, error) {
 	var resp2 []interface{}
 	select {
 	case r1 := <-s1:
+		wac.loginSessionLock.Lock()
+		defer wac.loginSessionLock.Unlock()
 		if err := json.Unmarshal([]byte(r1), &resp2); err != nil {
 			return session, fmt.Errorf("error decoding qr code resp: %v", err)
 		}
@@ -305,7 +374,7 @@ func (wac *Conn) Restore() error {
 	wac.listener.Unlock()
 
 	//admin init
-	init := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName}, wac.session.ClientId, true}
+	init := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName, wac.clientVersion}, wac.session.ClientId, true}
 	initChan, err := wac.writeJson(init)
 	if err != nil {
 		return fmt.Errorf("error writing admin init: %v\n", err)
@@ -326,9 +395,11 @@ func (wac *Conn) Restore() error {
 		}
 
 		if int(resp["status"].(float64)) != 200 {
+			wac.timeTag = ""
 			return fmt.Errorf("init responded with %d", resp["status"])
 		}
 	case <-time.After(wac.msgTimeout):
+		wac.timeTag = ""
 		return fmt.Errorf("restore session init timed out")
 	}
 
@@ -337,10 +408,11 @@ func (wac *Conn) Restore() error {
 	select {
 	case r1 := <-s1:
 		if err := json.Unmarshal([]byte(r1), &connResp); err != nil {
+			wac.timeTag = ""
 			return fmt.Errorf("error decoding s1 message: %v\n", err)
 		}
 	case <-time.After(wac.msgTimeout):
-
+		wac.timeTag = ""
 		//check for an error message
 		select {
 		case r := <-loginChan:
@@ -365,15 +437,18 @@ func (wac *Conn) Restore() error {
 		wac.listener.Unlock()
 
 		if err := wac.resolveChallenge(connResp[1].(map[string]interface{})["challenge"].(string)); err != nil {
+			wac.timeTag = ""
 			return fmt.Errorf("error resolving challenge: %v\n", err)
 		}
 
 		select {
 		case r := <-s2:
 			if err := json.Unmarshal([]byte(r), &connResp); err != nil {
+				wac.timeTag = ""
 				return fmt.Errorf("error decoding s2 message: %v\n", err)
 			}
 		case <-time.After(wac.msgTimeout):
+			wac.timeTag = ""
 			return fmt.Errorf("restore session challenge timed out")
 		}
 	}
@@ -383,13 +458,16 @@ func (wac *Conn) Restore() error {
 	case r := <-loginChan:
 		var resp map[string]interface{}
 		if err = json.Unmarshal([]byte(r), &resp); err != nil {
+			wac.timeTag = ""
 			return fmt.Errorf("error decoding login connResp: %v\n", err)
 		}
 
 		if int(resp["status"].(float64)) != 200 {
+			wac.timeTag = ""
 			return fmt.Errorf("admin login responded with %d", resp["status"])
 		}
 	case <-time.After(wac.msgTimeout):
+		wac.timeTag = ""
 		return fmt.Errorf("restore session login timed out")
 	}
 

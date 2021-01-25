@@ -2,15 +2,22 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"time"
 
 	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
-	"github.com/cozrum/go-whatsapp"
+	"github.com/Rhymen/go-whatsapp"
 )
 
 func main() {
-	wac, err := whatsapp.NewConn(5 * time.Second)
+	proxy := http.ProxyURL(&url.URL{
+		Scheme: "socks5", // or http/https depending on your proxy
+		Host:   "127.0.0.1:1080",
+		Path:   "/",
+	})
+	wac, err := whatsapp.NewConnWithProxy(5*time.Second, proxy)
 	if err != nil {
 		panic(err)
 	}

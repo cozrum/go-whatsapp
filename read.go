@@ -3,17 +3,24 @@ package whatsapp
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
-	"github.com/cozrum/go-whatsapp/binary"
-	"github.com/cozrum/go-whatsapp/crypto/cbc"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"strings"
+
+	"github.com/cozrum/go-whatsapp/binary"
+	"github.com/cozrum/go-whatsapp/crypto/cbc"
+	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 )
 
 func (wac *Conn) readPump() {
-	defer wac.wg.Done()
+	defer func() {
+		wac.wg.Done()
+		_, _ = wac.Disconnect()
+	}()
 
 	var readErr error
 	var msgType int
@@ -22,14 +29,15 @@ func (wac *Conn) readPump() {
 	for {
 		readerFound := make(chan struct{})
 		go func() {
-			msgType, reader, readErr = wac.ws.conn.NextReader()
+			if wac.ws != nil {
+				msgType, reader, readErr = wac.ws.conn.NextReader()
+			}
 			close(readerFound)
 		}()
 		select {
 		case <-readerFound:
 			if readErr != nil {
 				wac.handle(&ErrConnectionFailed{Err: readErr})
-				_, _ = wac.Disconnect()
 				return
 			}
 			msg, err := ioutil.ReadAll(reader)
@@ -55,6 +63,10 @@ func (wac *Conn) processReadData(msgType int, msg []byte) error {
 		data[0] = "!"
 	}
 
+	if len(data) == 2 && len(data[1]) == 0 {
+		return nil
+	}
+
 	if len(data) != 2 || len(data[1]) == 0 {
 		return ErrInvalidWsData
 	}
@@ -75,7 +87,13 @@ func (wac *Conn) processReadData(msgType int, msg []byte) error {
 		wac.listener.Lock()
 		delete(wac.listener.m, data[0])
 		wac.listener.Unlock()
-	} else if msgType == websocket.BinaryMessage && wac.loggedIn {
+	} else if msgType == websocket.BinaryMessage {
+		wac.loginSessionLock.RLock()
+		sess := wac.session
+		wac.loginSessionLock.RUnlock()
+		if sess == nil || sess.MacKey == nil || sess.EncKey == nil {
+			return ErrInvalidWsState
+		}
 		message, err := wac.decryptBinaryMessage([]byte(data[1]))
 		if err != nil {
 			return errors.Wrap(err, "error decoding binary")
@@ -94,6 +112,21 @@ func (wac *Conn) decryptBinaryMessage(msg []byte) (*binary.Node, error) {
 	}
 
 	h2 := hmac.New(sha256.New, wac.session.MacKey)
+	if len(msg) < 33 {
+		var response struct {
+			Status int `json:"status"`
+		}
+
+		if err := json.Unmarshal(msg, &response); err == nil {
+			if response.Status == http.StatusNotFound {
+				return nil, ErrServerRespondedWith404
+			}
+			return nil, errors.New(fmt.Sprintf("server responded with %d", response.Status))
+		}
+
+		return nil, ErrInvalidServerResponse
+
+	}
 	h2.Write([]byte(msg[32:]))
 	if !hmac.Equal(h2.Sum(nil), msg[:32]) {
 		return nil, ErrInvalidHmac

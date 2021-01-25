@@ -9,12 +9,26 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Rhymen/go-whatsapp/binary/proto"
+
 	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
-	"github.com/cozrum/go-whatsapp"
+	"github.com/Rhymen/go-whatsapp"
 )
 
 type waHandler struct {
-	c *whatsapp.Conn
+	c     *whatsapp.Conn
+	chats map[string]struct{}
+}
+
+func (h *waHandler) ShouldCallSynchronously() bool {
+	return true
+}
+
+func (h *waHandler) HandleRawMessage(message *proto.WebMessageInfo) {
+	// gather chats jid info from initial messages
+	if message != nil && message.Key.RemoteJid != nil {
+		h.chats[*message.Key.RemoteJid] = struct{}{}
+	}
 }
 
 //HandleError needs to be implemented to be a valid WhatsApp handler
@@ -34,39 +48,6 @@ func (h *waHandler) HandleError(err error) {
 	}
 }
 
-//Optional to be implemented. Implement HandleXXXMessage for the types you need.
-func (*waHandler) HandleTextMessage(message whatsapp.TextMessage) {
-	fmt.Printf("%v %v %v %v\n\t%v\n", message.Info.Timestamp, message.Info.Id, message.Info.RemoteJid, message.ContextInfo.QuotedMessageID, message.Text)
-}
-
-/*//Example for media handling. Video, Audio, Document are also possible in the same way
-func (h *waHandler) HandleImageMessage(message whatsapp.ImageMessage) {
-	data, err := message.Download()
-	if err != nil {
-		if err != whatsapp.ErrMediaDownloadFailedWith410 && err != whatsapp.ErrMediaDownloadFailedWith404 {
-			return
-		}
-		if _, err = h.c.LoadMediaInfo(message.Info.RemoteJid, message.Info.Id, strconv.FormatBool(message.Info.FromMe)); err == nil {
-			data, err = message.Download()
-			if err != nil {
-				return
-			}
-		}
-	}
-
-	filename := fmt.Sprintf("%v/%v.%v", os.TempDir(), message.Info.Id, strings.Split(message.Type, "/")[1])
-	file, err := os.Create(filename)
-	defer file.Close()
-	if err != nil {
-		return
-	}
-	_, err = file.Write(data)
-	if err != nil {
-		return
-	}
-	log.Printf("%v %v\n\timage received, saved at:%v\n", message.Info.Timestamp, message.Info.RemoteJid, filename)
-}*/
-
 func main() {
 	//create new WhatsApp connection
 	wac, err := whatsapp.NewConn(5 * time.Second)
@@ -75,25 +56,27 @@ func main() {
 	}
 
 	//Add handler
-	wac.AddHandler(&waHandler{wac})
+	handler := &waHandler{wac, make(map[string]struct{})}
+	wac.AddHandler(handler)
 
 	//login or restore
 	if err := login(wac); err != nil {
 		log.Fatalf("error logging in: %v\n", err)
 	}
 
-	//verifies phone connectivity
-	pong, err := wac.AdminTest()
+	// wait while chat jids are acquired through incoming initial messages
+	fmt.Println("Waiting for chats info...")
+	<-time.After(5 * time.Second)
 
-	if !pong || err != nil {
-		log.Fatalf("error pinging in: %v\n", err)
-	}
+	// get history synchronously
+	GetAnyHistory(wac, handler.chats)
+	fmt.Println("Done. Press Ctrl+C for exit.")
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	//Disconnect safe
+	//Disconnect safely
 	fmt.Println("Shutting down now.")
 	session, err := wac.Disconnect()
 	if err != nil {
@@ -111,7 +94,12 @@ func login(wac *whatsapp.Conn) error {
 		//restore session
 		session, err = wac.RestoreWithSession(session)
 		if err != nil {
-			return fmt.Errorf("restoring failed: %v\n", err)
+			err = deleteSession()
+			if err != nil {
+				return err
+			}
+			return login(wac)
+
 		}
 	} else {
 		//no saved session -> regular login
@@ -147,6 +135,10 @@ func readSession() (whatsapp.Session, error) {
 		return session, err
 	}
 	return session, nil
+}
+
+func deleteSession() error {
+	return os.Remove(os.TempDir() + "/whatsappSession.gob")
 }
 
 func writeSession(session whatsapp.Session) error {

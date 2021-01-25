@@ -8,11 +8,11 @@ import (
 type Presence string
 
 const (
-	PresenceAvailable   = "available"
-	PresenceUnavailable = "unavailable"
-	PresenceComposing   = "composing"
-	PresenceRecording   = "recording"
-	PresencePaused      = "paused"
+	PresenceAvailable   Presence = "available"
+	PresenceUnavailable Presence = "unavailable"
+	PresenceComposing   Presence = "composing"
+	PresenceRecording   Presence = "recording"
+	PresencePaused      Presence = "paused"
 )
 
 //TODO: filename? WhatsApp uses Store.Contacts for these functions
@@ -47,6 +47,10 @@ func (wac *Conn) LoadMessagesBefore(jid, messageId string, count int) (*binary.N
 
 func (wac *Conn) LoadMessagesAfter(jid, messageId string, count int) (*binary.Node, error) {
 	return wac.query("message", jid, messageId, "after", "true", "", count, 0)
+}
+
+func (wac *Conn) LoadMediaInfo(jid, messageId, owner string) (*binary.Node, error) {
+	return wac.query("media", jid, messageId, "", owner, "", 0, 0)
 }
 
 func (wac *Conn) Presence(jid string, presence Presence) (<-chan string, error) {
@@ -158,7 +162,12 @@ func (wac *Conn) query(t, jid, messageId, kind, owner, search string, count, pag
 		n.Attributes["page"] = strconv.Itoa(page)
 	}
 
-	ch, err := wac.writeBinary(n, group, ignore, tag)
+	metric := group
+	if t == "media" {
+		metric = queryMedia
+	}
+
+	ch, err := wac.writeBinary(n, metric, ignore, tag)
 	if err != nil {
 		return nil, err
 	}
