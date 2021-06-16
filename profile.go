@@ -48,7 +48,7 @@ func (wac *Conn) UpdateProfileName(name string) (<-chan string, error) {
 		Description: "action",
 		Attributes: map[string]string{
 			"type":  "set",
-			"epoch": strconv.Itoa(wac.msgCount),
+			"epoch": strconv.FormatInt(wac.msgCount, 10),
 		},
 		Content: []interface{}{
 			binary.Node{
